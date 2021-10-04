@@ -18,18 +18,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "728b7ab3119b5167cc60a4aad16b6086b762278f5571cc650e7eed2e89a23a15"
 
 [[package]]
-name = "lazy_static"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
-
-[[package]]
 name = "thrill_digger"
 version = "0.1.0"
 dependencies = [
  "ansi_term",
  "combinations",
- "lazy_static",
 ]
 
 [[package]]

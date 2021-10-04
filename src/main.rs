@@ -29,10 +29,10 @@ fn main() {
             break;
         }
 
-        let y: usize = String::from(chars[0])
+        let y: i32 = String::from(chars[0])
             .parse()
             .expect("Please type a number!");
-        let x: usize = String::from(chars[1])
+        let x: i32 = String::from(chars[1])
             .parse()
             .expect("Please type a number!");
         let cell = chars[2];
