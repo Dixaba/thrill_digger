@@ -1,0 +1,16 @@
+{
+  "configurations": [
+    {
+      "name": "Launch",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceRoot}/target/debug/${workspaceFolderBasename}",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "console": "externalTerminal",
+      "preLaunchTask": "${defaultBuildTask}",
+    },
+  ]
+}
