@@ -1,5 +1,5 @@
 [package]
-edition = "2018"
+edition = "2021"
 name    = "thrill_digger"
 version = "0.1.0"
 
@@ -8,3 +8,4 @@ version = "0.1.0"
 [dependencies]
 ansi_term    = "0.12.1"
 combinations = "0.1.0"
+rayon        = "1.5.1"

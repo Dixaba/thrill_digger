@@ -1,6 +1,7 @@
 use ansi_term::{Colour::*, Style};
 use combinations::Combinations;
-use std::{cmp::min, fmt::Display};
+use rayon::prelude::*;
+use std::{cmp::min, fmt::Display, sync::mpsc::channel};
 
 const WIDTH: usize = 6;
 const HEIGHT: usize = 5;
@@ -66,14 +67,8 @@ impl Display for Cell {
     }
 }
 
-impl Into<bool> for Cell {
-    fn into(self) -> bool {
-        self != Cell::Rupoor
-    }
-}
-
 pub struct Field {
-    cells: [[Cell; WIDTH]; HEIGHT],
+    cells: [Cell; WIDTH * HEIGHT],
 }
 
 impl Display for Field {
@@ -92,12 +87,10 @@ impl Display for Field {
 
         let mut min = 1.1;
 
-        for row_num in 0..HEIGHT {
-            for cell_num in 0..WIDTH {
-                if let Cell::Unknown(value) = self.cells[row_num][cell_num] {
-                    if value < min {
-                        min = value;
-                    }
+        for cell_num in 0..HEIGHT * WIDTH {
+            if let Cell::Unknown(value) = self.cells[cell_num] {
+                if value < min {
+                    min = value;
                 }
             }
         }
@@ -106,12 +99,12 @@ impl Display for Field {
             write!(f, "{}|", row_num)?;
             for cell_num in 0..WIDTH {
                 write!(f, "{}|", {
-                    let mut res = format!("{}", self.cells[row_num][cell_num]);
-                    if let Cell::Unknown(value) = self.cells[row_num][cell_num] {
+                    let mut res = format!("{}", self.cells[row_num * WIDTH + cell_num]);
+                    if let Cell::Unknown(value) = self.cells[row_num * WIDTH + cell_num] {
                         if value == min {
                             res = Green
                                 .reverse()
-                                .paint(format!("{}", self.cells[row_num][cell_num]))
+                                .paint(format!("{}", self.cells[row_num * WIDTH + cell_num]))
                                 .to_string();
                         }
                     }
@@ -129,32 +122,29 @@ impl Display for Field {
 impl Field {
     pub fn new() -> Self {
         Field {
-            cells: [[Cell::default(); WIDTH]; HEIGHT],
+            cells: [Cell::default(); WIDTH * HEIGHT],
         }
     }
 
     fn matches_preset(&self, positions: &Vec<usize>) -> bool {
-        for row_num in 0..HEIGHT {
-            for cell_num in 0..WIDTH {
-                let index = row_num * WIDTH + cell_num;
-                match self.cells[row_num][cell_num] {
-                    Cell::Unknown(_) => {}
-                    Cell::Rupoor => {
-                        if !positions.contains(&index) {
-                            return false;
-                        }
+        for cell_num in 0..HEIGHT * WIDTH {
+            match self.cells[cell_num] {
+                Cell::Unknown(_) => {}
+                Cell::Rupoor => {
+                    if !positions.contains(&cell_num) {
+                        return false;
                     }
-                    x => {
-                        if x != match Field::bombs_nearby_pos(positions, index) {
-                            0 => Cell::Green,
-                            1 | 2 => Cell::Blue,
-                            3 | 4 => Cell::Red,
-                            5 | 6 => Cell::Silver,
-                            7 | 8 => Cell::Gold,
-                            _ => Cell::Unknown(0.0),
-                        } {
-                            return false;
-                        }
+                }
+                x => {
+                    if x != match Field::bombs_nearby_pos(positions, cell_num) {
+                        0 => Cell::Green,
+                        1 | 2 => Cell::Blue,
+                        3 | 4 => Cell::Red,
+                        5 | 6 => Cell::Silver,
+                        7 | 8 => Cell::Gold,
+                        _ => Cell::Unknown(0.0),
+                    } {
+                        return false;
                     }
                 }
             }
@@ -167,17 +157,17 @@ impl Field {
             return;
         }
 
-        if self.cells[y as usize][x as usize] == value {
+        if self.cells[y as usize * WIDTH + x as usize] == value {
             return;
         }
-        self.cells[y as usize][x as usize] = value;
+        self.cells[y as usize * WIDTH + x as usize] = value;
 
         let mut untouched_cells = (0..HEIGHT * WIDTH).collect::<Vec<usize>>();
         let mut touched_cells = Vec::new();
         let mut confirmed_cells = Vec::new();
 
         for index in 0..WIDTH * HEIGHT {
-            match self.cells[index / WIDTH][index % WIDTH] {
+            match self.cells[index] {
                 Cell::Rupoor => {
                     confirmed_cells.push(index);
                     untouched_cells.retain(|v| *v != index);
@@ -205,16 +195,13 @@ impl Field {
             }
         }
 
-        for row_num in 0..HEIGHT {
-            for cell_num in 0..WIDTH {
-                match self.cells[row_num][cell_num] {
-                    Cell::Unknown(_) => {}
-                    _ => {
-                        let index = row_num * WIDTH + cell_num;
-                        touched_cells.retain(|v| *v != index);
-                    }
-                };
-            }
+        for cell_num in 0..HEIGHT * WIDTH {
+            match self.cells[cell_num] {
+                Cell::Unknown(_) => {}
+                _ => {
+                    touched_cells.retain(|v| *v != cell_num);
+                }
+            };
         }
 
         touched_cells.sort_unstable();
@@ -223,45 +210,48 @@ impl Field {
         let remaining_prob = self.bombs_remain(false) as f32;
         let mut total_touched_prob = 0.0;
 
-        let mut full_list;
-
         let max_var = min(self.bombs_remain(false), touched_cells.len());
 
         let mut possible_list = [0; HEIGHT * WIDTH];
         let mut possible_list_len = 0;
 
-        for mmm in 0..=max_var {
-            let optimization_mul = binom(untouched_cells.len(), max_var - mmm);
+        let (sender, receiver) = channel();
 
-            if mmm == 0 {
-                // 0 bombs case
-                if self.matches_preset(&confirmed_cells) {
-                    possible_list_len += optimization_mul;
-                }
-            } else if mmm == touched_cells.len() {
-                // all touched cells
-                full_list = confirmed_cells.clone();
-                full_list.append(&mut touched_cells.clone());
-                if self.matches_preset(&full_list) {
-                    for i in &touched_cells {
-                        possible_list[*i] += optimization_mul;
+        (0..=max_var)
+            .into_par_iter()
+            .for_each_with(sender, |s, mmm| {
+                let optimization_mul = binom(untouched_cells.len(), max_var - mmm);
+
+                if mmm == 0 {
+                    // 0 bombs case
+                    if self.matches_preset(&confirmed_cells) {
+                        s.send((Vec::new(), optimization_mul)).unwrap();
                     }
-                    possible_list_len += optimization_mul;
-                }
-            } else {
-                // somewhere in between 0 and all
-                for variant in Combinations::new(touched_cells.clone(), mmm) {
-                    full_list = confirmed_cells.clone();
-                    full_list.append(&mut variant.clone());
+                } else if mmm == touched_cells.len() {
+                    // all touched cells
+                    let mut full_list = confirmed_cells.clone();
+                    full_list.append(&mut touched_cells.clone());
                     if self.matches_preset(&full_list) {
-                        for i in variant {
-                            possible_list[i] += optimization_mul;
+                        s.send((touched_cells.clone(), optimization_mul)).unwrap();
+                    }
+                } else {
+                    // somewhere in between 0 and all
+                    for variant in Combinations::new(touched_cells.clone(), mmm) {
+                        let mut full_list = confirmed_cells.clone();
+                        full_list.append(&mut variant.clone());
+                        if self.matches_preset(&full_list) {
+                            s.send((variant, optimization_mul)).unwrap();
                         }
-                        possible_list_len += optimization_mul;
                     }
                 }
+            });
+
+        receiver.iter().for_each(|r: (Vec<usize>, usize)| {
+            for i in r.0 {
+                possible_list[i] += r.1;
             }
-        }
+            possible_list_len += r.1;
+        });
 
         let fields = possible_list_len as f32;
         println!("Found {} possible fields", fields);
@@ -269,30 +259,28 @@ impl Field {
         for index in &touched_cells {
             let has = possible_list[*index] as f32;
             let prob = has / fields;
-            self.cells[index / WIDTH][index % WIDTH] = Cell::Unknown(prob);
+            self.cells[*index] = Cell::Unknown(prob);
 
             total_touched_prob += prob;
         }
 
         let untouched_prob = (remaining_prob - total_touched_prob) / untouched_cells.len() as f32;
         for index in &untouched_cells {
-            self.cells[index / WIDTH][index % WIDTH] = Cell::Unknown(untouched_prob);
+            self.cells[*index] = Cell::Unknown(untouched_prob);
         }
     }
 
     fn bombs_remain(&self, count_unknown: bool) -> usize {
         let mut res = BOMBCOUNT;
-        for row in self.cells {
-            for cell in row {
-                match cell {
-                    Cell::Rupoor => {
-                        res -= 1;
-                    }
-                    Cell::Unknown(value) if value == 1.0 && count_unknown => {
-                        res -= 1;
-                    }
-                    _ => {}
+        for cell in self.cells {
+            match cell {
+                Cell::Rupoor => {
+                    res -= 1;
                 }
+                Cell::Unknown(value) if value == 1.0 && count_unknown => {
+                    res -= 1;
+                }
+                _ => {}
             }
         }
         res
