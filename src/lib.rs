@@ -212,9 +212,6 @@ impl Field {
 
         let max_var = min(self.bombs_remain(false), touched_cells.len());
 
-        let mut possible_list = [0; HEIGHT * WIDTH];
-        let mut possible_list_len = 0;
-
         let (sender, receiver) = channel();
 
         (0..=max_var)
@@ -222,36 +219,54 @@ impl Field {
             .for_each_with(sender, |s, mmm| {
                 let optimization_mul = binom(untouched_cells.len(), max_var - mmm);
 
+                let mut counts = [0; HEIGHT * WIDTH];
+
                 if mmm == 0 {
                     // 0 bombs case
                     if self.matches_preset(&confirmed_cells) {
-                        s.send((Vec::new(), optimization_mul)).unwrap();
+                        s.send((counts, optimization_mul)).unwrap();
                     }
                 } else if mmm == touched_cells.len() {
                     // all touched cells
                     let mut full_list = confirmed_cells.clone();
                     full_list.append(&mut touched_cells.clone());
                     if self.matches_preset(&full_list) {
-                        s.send((touched_cells.clone(), optimization_mul)).unwrap();
+                        for i in &touched_cells {
+                            counts[*i] += optimization_mul;
+                        }
+                        s.send((counts, optimization_mul)).unwrap();
                     }
                 } else {
                     // somewhere in between 0 and all
+
+                    let mut number = 0;
+
                     for variant in Combinations::new(touched_cells.clone(), mmm) {
                         let mut full_list = confirmed_cells.clone();
                         full_list.append(&mut variant.clone());
                         if self.matches_preset(&full_list) {
-                            s.send((variant, optimization_mul)).unwrap();
+                            for i in variant {
+                                counts[i] += optimization_mul;
+                            }
+                            number += optimization_mul;
                         }
                     }
+                    s.send((counts, number)).unwrap();
                 }
             });
 
-        receiver.iter().for_each(|r: (Vec<usize>, usize)| {
-            for i in r.0 {
-                possible_list[i] += r.1;
-            }
-            possible_list_len += r.1;
-        });
+        let mut possible_list = [0; HEIGHT * WIDTH];
+        let mut possible_list_len = 0;
+
+        receiver
+            .iter()
+            .for_each(|r: ([usize; HEIGHT * WIDTH], usize)| {
+                for i in 0..HEIGHT * WIDTH {
+                    possible_list[i] += r.0[i];
+                }
+
+                possible_list_len += r.1;
+            });
 
         let fields = possible_list_len as f32;
         println!("Found {} possible fields", fields);

@@ -29,26 +29,24 @@ fn main() {
             break;
         }
 
-        let y: i32 = String::from(chars[0])
-            .parse()
-            .expect("Please type a number!");
-        let x: i32 = String::from(chars[1])
-            .parse()
-            .expect("Please type a number!");
-        let cell = chars[2];
+        if let Ok(y) = String::from(chars[0]).parse() {
+            if let Ok(x) = String::from(chars[1]).parse() {
+                let cell = chars[2];
 
-        f.set_cell(
-            x,
-            y,
-            match cell {
-                'G' | 'g' => Cell::Green,
-                'B' | 'b' => Cell::Blue,
-                'R' | 'r' => Cell::Red,
-                'S' | 's' => Cell::Silver,
-                '!' => Cell::Gold,
-                '*' => Cell::Rupoor,
-                _ => Cell::Unknown(0.0),
-            },
-        );
+                f.set_cell(
+                    x,
+                    y,
+                    match cell {
+                        'G' | 'g' => Cell::Green,
+                        'B' | 'b' => Cell::Blue,
+                        'R' | 'r' => Cell::Red,
+                        'S' | 's' => Cell::Silver,
+                        '!' => Cell::Gold,
+                        '*' => Cell::Rupoor,
+                        _ => Cell::Unknown(0.0),
+                    },
+                );
+            }
+        }
     }
 }
