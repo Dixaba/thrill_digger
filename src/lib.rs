@@ -115,6 +115,7 @@ impl Display for Field {
         }
 
         writeln!(f, "Bombs + rupoors remain: {}", self.bombs_remain(true))?;
+
         Ok(())
     }
 }
@@ -152,15 +153,15 @@ impl Field {
         true
     }
 
-    pub fn set_cell(&mut self, x: i32, y: i32, value: Cell) {
-        if x < 0 || y < 0 {
+    pub fn set_cell(&mut self, row: i32, column: i32, value: Cell) {
+        if column < 0 || row < 0 {
             return;
         }
 
-        if self.cells[y as usize * WIDTH + x as usize] == value {
+        if self.cells[row as usize * WIDTH + column as usize] == value {
             return;
         }
-        self.cells[y as usize * WIDTH + x as usize] = value;
+        self.cells[row as usize * WIDTH + column as usize] = value;
 
         let mut untouched_cells = (0..HEIGHT * WIDTH).collect::<Vec<usize>>();
         let mut touched_cells = Vec::new();

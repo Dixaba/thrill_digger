@@ -19,34 +19,45 @@ fn main() {
         if input.is_empty() {
             continue;
         }
-
         let chars: Vec<char> = input.chars().collect();
-        if chars[0] == 'n' || chars[0] == 'N' {
-            f = Field::new();
-            continue;
-        }
+
+        // Quit
         if chars[0] == 'q' || chars[0] == 'Q' {
             break;
         }
 
-        if let Ok(y) = String::from(chars[0]).parse() {
-            if let Ok(x) = String::from(chars[1]).parse() {
-                let cell = chars[2];
-
-                f.set_cell(
-                    x,
-                    y,
-                    match cell {
-                        'G' | 'g' => Cell::Green,
-                        'B' | 'b' => Cell::Blue,
-                        'R' | 'r' => Cell::Red,
-                        'S' | 's' => Cell::Silver,
-                        '!' => Cell::Gold,
-                        '*' => Cell::Rupoor,
-                        _ => Cell::Unknown(0.0),
-                    },
-                );
-            }
+        // New game
+        if chars[0] == 'n' || chars[0] == 'N' {
+            f = Field::new();
+            continue;
         }
+
+        // Proper command has 3 chars
+        if chars.len() < 3 {
+            continue;
+        }
+        let row = match String::from(chars[0]).parse() {
+            Ok(it) => it,
+            _ => continue,
+        };
+        let column = match String::from(chars[1]).parse() {
+            Ok(it) => it,
+            _ => continue,
+        };
+        let cell = chars[2];
+
+        f.set_cell(
+            row,
+            column,
+            match cell {
+                'G' | 'g' => Cell::Green,
+                'B' | 'b' => Cell::Blue,
+                'R' | 'r' => Cell::Red,
+                'S' | 's' => Cell::Silver,
+                '!' => Cell::Gold,
+                '*' => Cell::Rupoor,
+                _ => Cell::Unknown(0.0),
+            },
+        );
     }
 }
